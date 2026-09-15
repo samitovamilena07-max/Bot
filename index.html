@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iStore Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-color: var(--tg-theme-bg-color, #ffffff);
+      --text-color: var(--tg-theme-text-color, #000000);
+      --sec-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+      --btn-color: var(--tg-theme-button-color, #3390ec);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 15px;
+      box-sizing: border-box;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background-color: var(--sec-bg);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card img {
+      width: 100%;
+      height: 100px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .title {
+      font-weight: 600;
+      font-size: 14px;
+      margin: 8px 0 4px;
+    }
+
+    .price {
+      font-weight: bold;
+      color: var(--btn-color);
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .btn-add {
+      background-color: var(--btn-color);
+      color: var(--btn-text);
+      border: none;
+      padding: 8px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-cnt {
+      background: #e5e5ea;
+      border: none;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e5e5ea;
+    }
+
+    .input-group {
+      margin-top: 15px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 5px;
+      opacity: 0.7;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      background: var(--sec-bg);
+      color: var(--text-color);
+    }
+
+    .total-row {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 20px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="catalog-page" class="page active">
+    <div class="grid" id="catalog"></div>
+  </div>
+
+  <div id="checkout-page" class="page">
+    <h2>Оформление заказа</h2>
+    <div id="order-list"></div>
+
+    <div class="input-group">
+      <label>ФИО получателя</label>
+      <input type="text" id="fullname" placeholder="Иванов Иван">
+    </div>
+    <div class="input-group">
+      <label>Адрес доставки</label>
+      <input type="text" id="address" placeholder="г. Уфа, ул. Ленина, д. 10">
+    </div>
+    <div class="input-group">
+      <label>Номер телефона</label>
+      <input type="tel" id="phone" placeholder="+7 (999) 000-00-00">
+    </div>
+
+    <div class="total-row" id="total-sum"></div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const products = [
+      { id: 1, name: "iPhone 15 Pro", price: 99900, img: "https://via.placeholder.com/150/000000/FFFFFF?text=iPhone+15+Pro" },
+      { id: 2, name: "iPhone 13", price: 59900, img: "https://via.placeholder.com/150/0000FF/FFFFFF?text=iPhone+13" },
+      { id: 3, name: "AirPods Pro 2", price: 24900, img: "https://via.placeholder.com/150/CCCCCC/000000?text=AirPods+Pro" },
+      { id: 4, name: "Apple Watch 9", price: 41900, img: "https://via.placeholder.com/150/FF0000/FFFFFF?text=Apple+Watch" }
+    ];
+
+    let cart = {};
+    let currentStep = 'catalog';
+
+    function renderCatalog() {
+      const catalog = document.getElementById('catalog');
+      catalog.innerHTML = '';
+
+      products.forEach(p => {
+        const count = cart[p.id] || 0;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <img src="${p.img}" alt="${p.name}">
+          <div class="title">${p.name}</div>
+          <div class="price">${p.price.toLocaleString()} ₽</div>${count === 0 
+            ? `<button class="btn-add" onclick="changeCount(${p.id}, 1)">ДОБАВИТЬ</button>`
+            : `<div class="controls">
+                <button class="btn-cnt" onclick="changeCount(${p.id}, -1)">-</button>
+                <span><b>${count}</b></span>
+                <button class="btn-cnt" onclick="changeCount(${p.id}, 1)">+</button>
+               </div>`
+          }
+        `;
+        catalog.appendChild(card);
+      });
+      updateMainButton();
+    }
+
+    function changeCount(id, delta) {
+      cart[id] = (cart[id] || 0) + delta;
+      if (cart[id] <= 0) delete cart[id];
+      renderCatalog();
+    }
+
+    function getTotalPrice() {
+      return Object.entries(cart).reduce((sum, [id, count]) => {
+        const item = products.find(p => p.id == id);
+        return sum + (item.price * count);
+      }, 0);
+    }
+
+    function updateMainButton() {
+      const totalCount = Object.values(cart).reduce((a, b) => a + b, 0);
+      const totalPrice = getTotalPrice();
+
+      if (totalCount > 0) {
+        if (currentStep === 'catalog') {
+          tg.MainButton.setText(`ПРОСМОТР ЗАКАЗА (${totalPrice.toLocaleString()} ₽)`);
+        } else {
+          tg.MainButton.setText(`ПЕРЕЙТИ К ОПЛАТЕ (${totalPrice.toLocaleString()} ₽)`);
+        }
+        tg.MainButton.show();
+      } else {
+        tg.MainButton.hide();
+      }
+    }
+
+    function showCheckout() {
+      currentStep = 'checkout';
+      document.getElementById('catalog-page').classList.remove('active');
+      document.getElementById('checkout-page').classList.add('active');
+
+      const orderList = document.getElementById('order-list');
+      orderList.innerHTML = '';
+
+      Object.entries(cart).forEach(([id, count]) => {
+        const item = products.find(p => p.id == id);
+        const div = document.createElement('div');
+        div.className = 'order-item';
+        div.innerHTML = `
+          <span>${item.name} x${count}</span>
+          <b>${(item.price * count).toLocaleString()} ₽</b>
+        `;
+        orderList.appendChild(div);
+      });
+
+      document.getElementById('total-sum').innerText = `Итого: ${getTotalPrice().toLocaleString()} ₽`;
+      tg.BackButton.show();
+      updateMainButton();
+    }
+
+    function showCatalog() {
+      currentStep = 'catalog';
+      document.getElementById('checkout-page').classList.remove('active');
+      document.getElementById('catalog-page').classList.add('active');
+      tg.BackButton.hide();
+      updateMainButton();
+    }
+
+    tg.onEvent('mainButtonClicked', function() {
+      if (currentStep === 'catalog') {
+        showCheckout();
+      } else {
+        const cartItems = Object.entries(cart).map(([id, count]) => {
+          const item = products.find(p => p.id == id);
+          return { name: item.name, price: item.price, quantity: count };
+        });
+
+        const orderData = {
+          cart: cartItems,
+          total: getTotalPrice(),
+          customer: {
+            name: document.getElementById('fullname').value || 'Не указано',
+            address: document.getElementById('address').value || 'Не указано',
+            phone: document.getElementById('phone').value || 'Не указано'
+          }
+        };
+
+        tg.sendData(JSON.stringify(orderData));
+      }
+    });
+
+    tg.onEvent('backButtonClicked', function() {
+      showCatalog();
+    });
+
+    renderCatalog();
+  </script>
+</body>
+</html>
